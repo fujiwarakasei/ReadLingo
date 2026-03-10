@@ -1,0 +1,5 @@
+{
+  "name": "LingoReader",
+  "description": "An interactive English reading assistant that generates custom articles and provides instant word definitions and pronunciation.",
+  "requestFramePermissions": []
+}
