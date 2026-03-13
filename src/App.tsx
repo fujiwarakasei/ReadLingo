@@ -132,7 +132,7 @@ export default function App() {
         onDelete={historyStore.deleteHistoryItem}
       />
 
-      <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 pt-8 pb-24 flex flex-col gap-8">
         <GeneratorForm
           topic={topic}
           difficulty={difficulty}
