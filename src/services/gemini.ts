@@ -9,9 +9,10 @@ export async function generateArticle(topic: string, difficulty: string): Promis
 Requirements:
 1. Create an appropriate, corrected title for the article. If the topic contains typos, grammatical errors, or unclear phrasing, fix them in the title.
 2. Write engaging, educational content with vocabulary appropriate for the ${difficulty} level.
+3. Split the article into segments. Each segment should typically be ONE sentence. However, if a sentence is very short (e.g., under 6 words), combine it with an adjacent sentence into one segment. Use your judgment to keep segments natural for reading aloud.
 
 Return a JSON object with exactly this structure (no markdown, no code blocks):
-{"title": "The Article Title", "content": "The article content with paragraphs separated by newlines."}`;
+{"title": "The Article Title", "segments": ["First sentence.", "Second sentence.", "Third short one. Fourth short one.", "Fifth sentence."]}`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -22,7 +23,9 @@ Return a JSON object with exactly this structure (no markdown, no code blocks):
   try {
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleaned);
-    return { title: parsed.title || topic, content: parsed.content || "" };
+    const segments: string[] = parsed.segments || [];
+    const content = segments.length > 0 ? segments.join('\n') : (parsed.content || "");
+    return { title: parsed.title || topic, content };
   } catch {
     return { title: topic, content: text };
   }
