@@ -3,16 +3,19 @@ import { base64ToBytes, uint8ToBase64, createWavFile } from "../utils/audio";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export async function generateArticle(topic: string, difficulty: string): Promise<{ title: string; content: string }> {
+import type { Segment } from '../types';
+
+export async function generateArticle(topic: string, difficulty: string): Promise<{ title: string; content: string; segments: Segment[] }> {
   const prompt = `Generate a short English article (around 150-200 words) about "${topic}" at a "${difficulty}" reading level.
 
 Requirements:
 1. Create an appropriate, corrected title for the article. If the topic contains typos, grammatical errors, or unclear phrasing, fix them in the title.
 2. Write engaging, educational content with vocabulary appropriate for the ${difficulty} level.
 3. Split the article into segments. Each segment should typically be ONE sentence. However, if a sentence is very short (e.g., under 6 words), combine it with an adjacent sentence into one segment. Use your judgment to keep segments natural for reading aloud.
+4. For each segment, provide a natural Chinese translation.
 
 Return a JSON object with exactly this structure (no markdown, no code blocks):
-{"title": "The Article Title", "segments": ["First sentence.", "Second sentence.", "Third short one. Fourth short one.", "Fifth sentence."]}`;
+{"title": "The Article Title", "segments": [{"en": "First sentence.", "zh": "第一句。"}, {"en": "Second sentence.", "zh": "第二句。"}]}`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -23,11 +26,16 @@ Return a JSON object with exactly this structure (no markdown, no code blocks):
   try {
     const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const parsed = JSON.parse(cleaned);
-    const segments: string[] = parsed.segments || [];
-    const content = segments.length > 0 ? segments.join('\n') : (parsed.content || "");
-    return { title: parsed.title || topic, content };
+    const rawSegments: Array<string | Segment> = parsed.segments || [];
+
+    // Handle both old format (string[]) and new format (Segment[])
+    const segments: Segment[] = rawSegments.map(s =>
+      typeof s === 'string' ? { en: s, zh: '' } : s
+    );
+    const content = segments.map(s => s.en).join('\n');
+    return { title: parsed.title || topic, content, segments };
   } catch {
-    return { title: topic, content: text };
+    return { title: topic, content: text, segments: [{ en: text, zh: '' }] };
   }
 }
 

@@ -1,6 +1,7 @@
-import { BookOpen, Loader2, Volume2, Square } from 'lucide-react';
-import { motion } from 'motion/react';
-import type { Difficulty } from '../types';
+import { useState } from 'react';
+import { BookOpen, Loader2, Volume2, Square, ChevronDown } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import type { Difficulty, Segment } from '../types';
 
 interface ArticleViewProps {
   article: string;
@@ -10,6 +11,7 @@ interface ArticleViewProps {
   speakingIndex: number | null;
   isLoadingAudio: number | null;
   onPlayParagraph: (text: string, index: number) => void;
+  segments: Segment[];
 }
 
 const difficultyBadge: Record<string, string> = {
@@ -37,10 +39,12 @@ const difficultySpeakingBtn: Record<string, string> = {
 };
 
 function ParagraphRow({
-  text, index, isSpeaking, isLoading, onPlay, difficulty,
+  text, index, isSpeaking, isLoading, onPlay, difficulty, translation,
 }: {
-  text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void; difficulty: Difficulty;
+  text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void; difficulty: Difficulty; translation?: string;
 }) {
+  const [showTranslation, setShowTranslation] = useState(false);
+
   return (
     <div className={`mb-8 relative group flex gap-3 sm:gap-4 transition-all duration-300 ${
       isSpeaking ? `pl-4 border-l-2 ${difficultyAccent[difficulty] || 'border-l-amber-500'}` : 'pl-0 border-l-2 border-l-transparent'
@@ -66,16 +70,42 @@ function ParagraphRow({
           )}
         </button>
       </div>
-      <p className={`text-[1.125rem] leading-[1.85] font-serif transition-colors duration-300 pt-1.5 ${
-        isSpeaking ? 'text-walnut-900' : 'text-walnut-700'
-      }`}>
-        {text}
-      </p>
+      <div className="flex-1 pt-1.5">
+        <p className={`text-[1.125rem] leading-[1.85] font-serif transition-colors duration-300 ${
+          isSpeaking ? 'text-walnut-900' : 'text-walnut-700'
+        }`}>
+          {text}
+        </p>
+        {translation && (
+          <div className="mt-1.5">
+            <button
+              onClick={() => setShowTranslation(!showTranslation)}
+              className="inline-flex items-center gap-1 text-xs text-walnut-400 hover:text-walnut-500 transition-colors"
+            >
+              <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showTranslation ? 'rotate-180' : ''}`} />
+              {showTranslation ? '隐藏翻译' : '查看翻译'}
+            </button>
+            <AnimatePresence>
+              {showTranslation && (
+                <motion.p
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="text-sm leading-relaxed text-walnut-400 mt-1 overflow-hidden"
+                >
+                  {translation}
+                </motion.p>
+              )}
+            </AnimatePresence>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
-export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph }: ArticleViewProps) {
+export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments }: ArticleViewProps) {
   if (isLoading) {
     return (
       <section className="min-h-[400px]">
@@ -129,6 +159,7 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
               isLoading={isLoadingAudio === idx}
               onPlay={() => onPlayParagraph(paragraph, idx)}
               difficulty={difficulty}
+              translation={segments[idx]?.zh}
             />
           ))}
         </div>

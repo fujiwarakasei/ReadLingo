@@ -8,7 +8,7 @@ import { GeneratorForm } from './components/GeneratorForm';
 import { ArticleView } from './components/ArticleView';
 import { AudioController } from './components/AudioController';
 import { STORAGE_KEY_STATE } from './constants';
-import type { Difficulty, HistoryItem } from './types';
+import type { Difficulty, Segment, HistoryItem } from './types';
 
 const savedState = (() => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATE) || 'null'); } catch { return null; }
@@ -19,6 +19,7 @@ export default function App() {
   const [difficulty, setDifficulty] = useState<Difficulty>(savedState?.difficulty ?? 'Beginner');
   const [article, setArticle] = useState<string>(savedState?.article ?? '');
   const [articleTitle, setArticleTitle] = useState<string>(savedState?.title ?? savedState?.topic ?? '');
+  const [segments, setSegments] = useState<Segment[]>(savedState?.segments ?? []);
   const [isLoadingArticle, setIsLoadingArticle] = useState(false);
 
   const audio = useAudioPlayer(difficulty);
@@ -37,19 +38,21 @@ export default function App() {
 
     setIsLoadingArticle(true);
     setArticle('');
+    setSegments([]);
     audio.stopSpeaking();
 
     try {
-      const { title, content } = await generateArticle(topic, difficulty);
+      const { title, content, segments: newSegments } = await generateArticle(topic, difficulty);
       const now = new Date().toISOString();
 
-      historyStore.saveToHistory(topic, title, difficulty, content, now);
+      historyStore.saveToHistory(topic, title, difficulty, content, now, newSegments);
 
       setArticle(content);
       setArticleTitle(title);
+      setSegments(newSegments);
       audio.clearAudioCache();
       try {
-        localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic, title, difficulty, article: content, createdAt: now }));
+        localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic, title, difficulty, article: content, segments: newSegments, createdAt: now }));
       } catch { /* quota exceeded, skip */ }
     } catch (error) {
       console.error("Failed to generate article:", error);
@@ -65,10 +68,11 @@ export default function App() {
     setArticleTitle(item.title ?? item.topic);
     setDifficulty(item.difficulty);
     setArticle(item.article);
+    setSegments(item.segments ?? []);
     audio.clearAudioCache();
     historyStore.setShowHistory(false);
     try {
-      localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic: item.topic, title: item.title, difficulty: item.difficulty, article: item.article, createdAt: item.createdAt }));
+      localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic: item.topic, title: item.title, difficulty: item.difficulty, article: item.article, segments: item.segments, createdAt: item.createdAt }));
     } catch { /* quota exceeded, skip */ }
   };
 
@@ -105,6 +109,7 @@ export default function App() {
           speakingIndex={audio.speakingIndex}
           isLoadingAudio={audio.isLoadingAudio}
           onPlayParagraph={audio.playParagraph}
+          segments={segments}
         />
       </main>
 

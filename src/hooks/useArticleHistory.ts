@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { Difficulty, HistoryItem } from '../types';
+import type { Difficulty, Segment, HistoryItem } from '../types';
 import { STORAGE_KEY_HISTORY, MAX_HISTORY } from '../constants';
 
 export function useArticleHistory() {
@@ -8,8 +8,8 @@ export function useArticleHistory() {
   });
   const [showHistory, setShowHistory] = useState(false);
 
-  const saveToHistory = useCallback((topic: string, title: string, difficulty: Difficulty, article: string, createdAt: string) => {
-    const item: HistoryItem = { id: Date.now().toString(), topic, title, difficulty, article, createdAt };
+  const saveToHistory = useCallback((topic: string, title: string, difficulty: Difficulty, article: string, createdAt: string, segments?: Segment[]) => {
+    const item: HistoryItem = { id: Date.now().toString(), topic, title, difficulty, article, segments, createdAt };
     setHistory(prev => {
       const updated = [item, ...prev].slice(0, MAX_HISTORY);
       try { localStorage.setItem(STORAGE_KEY_HISTORY, JSON.stringify(updated)); } catch { /* quota exceeded */ }
