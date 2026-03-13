@@ -1,22 +1,46 @@
-import { GoogleGenAI, Type, Modality } from "@google/genai";
+import { GoogleGenAI, Modality } from "@google/genai";
+import { base64ToBytes, uint8ToBase64, createWavFile } from "../utils/audio";
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-export async function generateArticle(topic: string, difficulty: string): Promise<string> {
-  const prompt = `Write a short English article (around 150-200 words) about '${topic}' at a '${difficulty}' reading level. The article should be engaging, educational, and use vocabulary appropriate for the chosen level. Return ONLY the article text, without any markdown formatting or titles unless necessary for the structure.`;
-  
+export async function generateArticle(topic: string, difficulty: string): Promise<{ title: string; content: string }> {
+  const prompt = `Generate a short English article (around 150-200 words) about "${topic}" at a "${difficulty}" reading level.
+
+Requirements:
+1. Create an appropriate, corrected title for the article. If the topic contains typos, grammatical errors, or unclear phrasing, fix them in the title.
+2. Write engaging, educational content with vocabulary appropriate for the ${difficulty} level.
+
+Return a JSON object with exactly this structure (no markdown, no code blocks):
+{"title": "The Article Title", "content": "The article content with paragraphs separated by newlines."}`;
+
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
     contents: prompt,
   });
-  
-  return response.text || "";
+
+  const text = response.text || "";
+  try {
+    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    return { title: parsed.title || topic, content: parsed.content || "" };
+  } catch {
+    return { title: topic, content: text };
+  }
 }
 
-export async function generateSpeech(text: string): Promise<string> {
+export async function generateSpeech(text: string, difficulty: string): Promise<string> {
+  const speedInstruction =
+    difficulty === 'Beginner'
+      ? 'Read the following text slowly and clearly, with natural pauses between sentences.'
+      : difficulty === 'Intermediate'
+      ? 'Read the following text at a moderate, steady pace.'
+      : 'Read the following text at a natural, conversational pace.';
+
+  const fullText = `${speedInstruction}\n\n${text}`;
+
   const response = await ai.models.generateContent({
     model: "gemini-2.5-flash-preview-tts",
-    contents: [{ parts: [{ text }] }],
+    contents: [{ parts: [{ text: fullText }] }],
     config: {
       responseModalities: [Modality.AUDIO],
       speechConfig: {
@@ -33,61 +57,19 @@ export async function generateSpeech(text: string): Promise<string> {
     throw new Error("Failed to generate audio");
   }
 
-  const binaryString = atob(inlineData.data);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
+  const bytes = base64ToBytes(inlineData.data);
 
-  let blob: Blob;
+  let wavBytes: Uint8Array;
+
   // Check if it's already a WAV file (starts with "RIFF")
   if (bytes.length > 4 && bytes[0] === 82 && bytes[1] === 73 && bytes[2] === 70 && bytes[3] === 70) {
-    blob = new Blob([bytes], { type: 'audio/wav' });
+    wavBytes = bytes;
   } else {
     // Assume raw PCM 16-bit 24000Hz mono
-    blob = createWavFile(bytes, 24000);
+    const wavBlob = createWavFile(bytes, 24000);
+    const ab = await wavBlob.arrayBuffer();
+    wavBytes = new Uint8Array(ab);
   }
 
-  return URL.createObjectURL(blob);
-}
-
-function createWavFile(pcmData: Uint8Array, sampleRate: number): Blob {
-  const numChannels = 1;
-  const bitsPerSample = 16;
-  const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
-  const blockAlign = numChannels * (bitsPerSample / 8);
-  const dataSize = pcmData.length;
-  const buffer = new ArrayBuffer(44 + dataSize);
-  const view = new DataView(buffer);
-
-  // RIFF chunk descriptor
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + dataSize, true);
-  writeString(view, 8, 'WAVE');
-
-  // fmt sub-chunk
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-  view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
-  view.setUint16(22, numChannels, true);
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, byteRate, true);
-  view.setUint16(32, blockAlign, true);
-  view.setUint16(34, bitsPerSample, true);
-
-  // data sub-chunk
-  writeString(view, 36, 'data');
-  view.setUint32(40, dataSize, true);
-
-  // Write PCM data
-  const pcmView = new Uint8Array(buffer, 44);
-  pcmView.set(pcmData);
-
-  return new Blob([buffer], { type: 'audio/wav' });
-}
-
-function writeString(view: DataView, offset: number, string: string) {
-  for (let i = 0; i < string.length; i++) {
-    view.setUint8(offset + i, string.charCodeAt(i));
-  }
+  return uint8ToBase64(wavBytes);
 }
