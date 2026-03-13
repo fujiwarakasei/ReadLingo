@@ -12,20 +12,46 @@ interface ArticleViewProps {
   onPlayParagraph: (text: string, index: number) => void;
 }
 
+const difficultyBadge: Record<string, string> = {
+  Beginner: 'bg-sage-100 text-sage-600',
+  Intermediate: 'bg-amber-400/20 text-amber-600',
+  Advanced: 'bg-rosewood-100 text-rosewood-600',
+};
+
+const difficultyBorder: Record<string, string> = {
+  Beginner: 'border-sage-200',
+  Intermediate: 'border-amber-400/40',
+  Advanced: 'border-rosewood-100',
+};
+
+const difficultyAccent: Record<string, string> = {
+  Beginner: 'border-l-sage-500',
+  Intermediate: 'border-l-amber-500',
+  Advanced: 'border-l-rosewood-500',
+};
+
+const difficultySpeakingBtn: Record<string, string> = {
+  Beginner: 'bg-sage-100 text-sage-600',
+  Intermediate: 'bg-amber-400/20 text-amber-600',
+  Advanced: 'bg-rosewood-100 text-rosewood-600',
+};
+
 function ParagraphRow({
-  text, index, isSpeaking, isLoading, onPlay,
+  text, index, isSpeaking, isLoading, onPlay, difficulty,
 }: {
-  text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void;
+  text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void; difficulty: Difficulty;
 }) {
   return (
-    <div className="mb-6 relative group flex gap-4">
+    <div className={`mb-8 relative group flex gap-3 sm:gap-4 transition-all duration-300 ${
+      isSpeaking ? `pl-4 border-l-2 ${difficultyAccent[difficulty] || 'border-l-amber-500'}` : 'pl-0 border-l-2 border-l-transparent'
+    }`}>
       <div className="shrink-0 pt-1">
         <button
           onClick={onPlay}
-          className={`p-2 rounded-full transition-all duration-200 flex items-center justify-center ${
+          className={`w-10 h-10 rounded-full transition-all duration-200 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50 ${
             isSpeaking || isLoading
-              ? 'bg-indigo-100 text-indigo-600 shadow-inner'
-              : 'bg-slate-50 text-slate-400 hover:bg-indigo-50 hover:text-indigo-500'
+              ? difficultySpeakingBtn[difficulty] || 'bg-amber-400/20 text-amber-600'
+              : 'bg-cream-200 text-walnut-400 hover:bg-amber-400/15 hover:text-amber-500'
           }`}
           title={isSpeaking ? "Stop reading" : "Read paragraph"}
           aria-label={isSpeaking ? "Stop reading" : "Read paragraph"}
@@ -34,14 +60,14 @@ function ParagraphRow({
           {isLoading ? (
             <Loader2 className="w-5 h-5 animate-spin" />
           ) : isSpeaking ? (
-            <Square className="w-5 h-5 fill-current" />
+            <Square className="w-4 h-4 fill-current" />
           ) : (
             <Volume2 className="w-5 h-5" />
           )}
         </button>
       </div>
-      <p className={`text-lg leading-relaxed font-serif transition-colors duration-300 ${
-        isSpeaking ? 'text-indigo-900' : 'text-slate-800'
+      <p className={`text-[1.125rem] leading-[1.85] font-serif transition-colors duration-300 pt-1.5 ${
+        isSpeaking ? 'text-walnut-900' : 'text-walnut-700'
       }`}>
         {text}
       </p>
@@ -52,10 +78,10 @@ function ParagraphRow({
 export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph }: ArticleViewProps) {
   if (isLoading) {
     return (
-      <section className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 min-h-[400px]">
-        <div className="h-full flex flex-col items-center justify-center text-slate-400 space-y-4 py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-indigo-500" />
-          <p>Crafting your custom article...</p>
+      <section className="min-h-[400px]">
+        <div className="h-full flex flex-col items-center justify-center text-walnut-400 space-y-4 py-24">
+          <Loader2 className="w-7 h-7 animate-spin text-amber-500" />
+          <p className="font-serif italic text-walnut-500">Preparing your article...</p>
         </div>
       </section>
     );
@@ -63,11 +89,11 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
 
   if (!article) {
     return (
-      <section className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 min-h-[400px]">
-        <div className="h-full flex flex-col items-center justify-center text-slate-400 py-20 text-center">
-          <BookOpen className="w-12 h-12 mb-4 opacity-20" />
-          <p className="text-lg font-medium text-slate-600">Ready to read?</p>
-          <p className="text-sm mt-1 max-w-sm">Enter a topic above and we&apos;ll generate a custom article tailored to your level.</p>
+      <section className="min-h-[400px]">
+        <div className="h-full flex flex-col items-center justify-center text-walnut-400 py-24 text-center">
+          <BookOpen className="w-10 h-10 mb-4 opacity-15 text-walnut-300" />
+          <p className="text-lg font-serif font-medium text-walnut-500">Ready to read?</p>
+          <p className="text-sm mt-1.5 max-w-sm text-walnut-400">Enter a topic above and we&apos;ll generate an article tailored to your level.</p>
         </div>
       </section>
     );
@@ -76,24 +102,24 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
   const paragraphs = article.split('\n').filter(p => p.trim() !== '');
 
   return (
-    <section className="bg-white rounded-2xl p-8 shadow-sm border border-slate-200 min-h-[400px]">
+    <section className="min-h-[400px]">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="prose prose-lg max-w-none"
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
       >
-        <div className="mb-8 pb-4 border-b border-slate-100">
-          <h2 className="text-3xl font-bold text-slate-900">{articleTitle}</h2>
-          <div className="flex items-center gap-2 mt-3 text-sm text-slate-500">
-            <span className="px-2.5 py-0.5 rounded-full bg-slate-100 font-medium">
-              {difficulty} Level
+        <div className={`mb-10 pb-6 border-b ${difficultyBorder[difficulty] || 'border-cream-300'}`}>
+          <h2 className="text-3xl sm:text-4xl font-serif font-bold text-walnut-800 leading-tight">{articleTitle}</h2>
+          <div className="flex items-center gap-3 mt-4 text-sm text-walnut-400">
+            <span className={`px-2.5 py-0.5 rounded-full font-medium text-xs ${difficultyBadge[difficulty] || 'bg-cream-200 text-walnut-500'}`}>
+              {difficulty}
             </span>
-            <span>&bull;</span>
-            <span>Click the speaker icon to listen to a paragraph</span>
+            <span className="text-cream-400">&bull;</span>
+            <span>Tap any paragraph to hear it read aloud</span>
           </div>
         </div>
 
-        <div className="article-content max-w-3xl">
+        <div className="max-w-[42rem]">
           {paragraphs.map((paragraph, idx) => (
             <ParagraphRow
               key={idx}
@@ -102,6 +128,7 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
               isSpeaking={speakingIndex === idx}
               isLoading={isLoadingAudio === idx}
               onPlay={() => onPlayParagraph(paragraph, idx)}
+              difficulty={difficulty}
             />
           ))}
         </div>

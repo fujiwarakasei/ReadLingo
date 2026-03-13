@@ -1,1 +1,68 @@
 @import "tailwindcss";
+
+@theme {
+  --font-sans: 'DM Sans', system-ui, sans-serif;
+  --font-serif: 'Lora', Georgia, 'Times New Roman', serif;
+
+  /* Warm study room palette */
+  --color-cream-50: #fdfbf7;
+  --color-cream-100: #faf6ee;
+  --color-cream-200: #f2eadb;
+  --color-cream-300: #e8dcc8;
+  --color-cream-400: #d4c4a8;
+
+  --color-walnut-50: #f9f5f0;
+  --color-walnut-100: #efe7db;
+  --color-walnut-200: #ddd0bc;
+  --color-walnut-300: #c5ad8a;
+  --color-walnut-400: #b09368;
+  --color-walnut-500: #96794e;
+  --color-walnut-600: #7a5f3a;
+  --color-walnut-700: #5e4729;
+  --color-walnut-800: #3d2e1a;
+  --color-walnut-900: #2a1f11;
+
+  --color-amber-400: #d4a26a;
+  --color-amber-500: #c4894e;
+  --color-amber-600: #a86f38;
+
+  --color-sage-50: #f4f6f2;
+  --color-sage-100: #e5ebe0;
+  --color-sage-200: #cddac3;
+  --color-sage-500: #6b7f5e;
+  --color-sage-600: #556a48;
+
+  --color-rosewood-100: #f2e4e0;
+  --color-rosewood-500: #8b5c4a;
+  --color-rosewood-600: #6e4538;
+}
+
+body {
+  background-color: var(--color-cream-50);
+  color: var(--color-walnut-800);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* AudioController entrance */
+@keyframes slide-up-fade {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(1rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+.audio-controller-enter {
+  animation: slide-up-fade 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-controller-enter {
+    animation: none;
+  }
+}

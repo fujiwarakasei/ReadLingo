@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { generateArticle } from './services/gemini';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useArticleHistory } from './hooks/useArticleHistory';
@@ -23,6 +23,13 @@ export default function App() {
 
   const audio = useAudioPlayer(difficulty);
   const historyStore = useArticleHistory();
+
+  const speakingSnippet = useMemo(() => {
+    if (audio.speakingIndex === null || !article) return '';
+    const paragraphs = article.split('\n').filter(p => p.trim() !== '');
+    const text = paragraphs[audio.speakingIndex] ?? '';
+    return text.length > 60 ? text.slice(0, 57) + '...' : text;
+  }, [audio.speakingIndex, article]);
 
   const handleGenerate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,7 +73,7 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f9fa] text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-cream-50 text-walnut-800 font-sans flex flex-col">
       <Header
         historyCount={historyStore.history.length}
         onShowHistory={() => historyStore.setShowHistory(true)}
@@ -80,7 +87,7 @@ export default function App() {
         onDelete={historyStore.deleteHistoryItem}
       />
 
-      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-8">
         <GeneratorForm
           topic={topic}
           difficulty={difficulty}
@@ -104,6 +111,7 @@ export default function App() {
       <AudioController
         visible={audio.speakingIndex !== null}
         isPaused={audio.isAudioPaused}
+        paragraphSnippet={speakingSnippet}
         onTogglePlayPause={audio.togglePlayPause}
         onSkip={audio.skipAudio}
         onStop={audio.stopSpeaking}
