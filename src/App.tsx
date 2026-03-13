@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { generateArticle } from './services/gemini';
+import { generateArticle, generateImage, IMG_MARKER_RE } from './services/gemini';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useArticleHistory } from './hooks/useArticleHistory';
 import { Header } from './components/Header';
@@ -7,11 +7,15 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { GeneratorForm } from './components/GeneratorForm';
 import { ArticleView } from './components/ArticleView';
 import { AudioController } from './components/AudioController';
-import { STORAGE_KEY_STATE } from './constants';
+import { STORAGE_KEY_STATE, STORAGE_KEY_IMAGES } from './constants';
 import type { Difficulty, Segment, HistoryItem } from './types';
 
 const savedState = (() => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATE) || 'null'); } catch { return null; }
+})();
+
+const savedImages = (() => {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch { return {}; }
 })();
 
 export default function App() {
@@ -21,6 +25,8 @@ export default function App() {
   const [articleTitle, setArticleTitle] = useState<string>(savedState?.title ?? savedState?.topic ?? '');
   const [segments, setSegments] = useState<Segment[]>(savedState?.segments ?? []);
   const [isLoadingArticle, setIsLoadingArticle] = useState(false);
+  const [imageMap, setImageMap] = useState<Record<string, string>>(savedImages);
+  const [imagesLoaded, setImagesLoaded] = useState(true);
 
   const audio = useAudioPlayer(difficulty);
   const historyStore = useArticleHistory();
@@ -39,6 +45,8 @@ export default function App() {
     setIsLoadingArticle(true);
     setArticle('');
     setSegments([]);
+    setImageMap({});
+    setImagesLoaded(false);
     audio.stopSpeaking();
 
     try {
@@ -54,6 +62,34 @@ export default function App() {
       try {
         localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic, title, difficulty, article: content, segments: newSegments, createdAt: now }));
       } catch { /* quota exceeded, skip */ }
+
+      // Extract image prompts and generate images in background
+      const imgPrompts = newSegments
+        .map(s => s.en.match(IMG_MARKER_RE)?.[1])
+        .filter((p): p is string => !!p);
+
+      if (imgPrompts.length > 0) {
+        try { localStorage.removeItem(STORAGE_KEY_IMAGES); } catch { /* skip */ }
+
+        const results = await Promise.allSettled(
+          imgPrompts.map(prompt => generateImage(prompt))
+        );
+
+        const newImageMap: Record<string, string> = {};
+        results.forEach((result, i) => {
+          if (result.status === 'fulfilled') {
+            newImageMap[imgPrompts[i]] = result.value;
+          } else {
+            console.error(`Image generation failed for: ${imgPrompts[i]}`, result.reason);
+          }
+        });
+
+        setImageMap(newImageMap);
+        try {
+          localStorage.setItem(STORAGE_KEY_IMAGES, JSON.stringify(newImageMap));
+        } catch { /* quota exceeded, skip */ }
+      }
+      setImagesLoaded(true);
     } catch (error) {
       console.error("Failed to generate article:", error);
       alert("Failed to generate article. Please try again.");
@@ -70,6 +106,11 @@ export default function App() {
     setArticle(item.article);
     setSegments(item.segments ?? []);
     audio.clearAudioCache();
+    // Restore image cache if available
+    const cachedImages = (() => {
+      try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch { return {}; }
+    })();
+    setImageMap(cachedImages);
     historyStore.setShowHistory(false);
     try {
       localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic: item.topic, title: item.title, difficulty: item.difficulty, article: item.article, segments: item.segments, createdAt: item.createdAt }));
@@ -110,6 +151,8 @@ export default function App() {
           isLoadingAudio={audio.isLoadingAudio}
           onPlayParagraph={audio.playParagraph}
           segments={segments}
+          imageMap={imageMap}
+          imagesLoaded={imagesLoaded}
         />
       </main>
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { BookOpen, Loader2, Volume2, Square, ChevronDown } from 'lucide-react';
+import { BookOpen, Loader2, Volume2, Square, ChevronDown, ImageOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { IMG_MARKER_RE } from '../services/gemini';
 import type { Difficulty, Segment } from '../types';
 
 interface ArticleViewProps {
@@ -12,6 +13,8 @@ interface ArticleViewProps {
   isLoadingAudio: number | null;
   onPlayParagraph: (text: string, index: number) => void;
   segments: Segment[];
+  imageMap: Record<string, string>;
+  imagesLoaded: boolean;
 }
 
 const difficultyBadge: Record<string, string> = {
@@ -105,7 +108,34 @@ function ParagraphRow({
   );
 }
 
-export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments }: ArticleViewProps) {
+function ImageRow({ prompt, base64, loaded }: { prompt: string; base64?: string; loaded: boolean }) {
+  if (base64) {
+    return (
+      <div className="mb-8 flex justify-center">
+        <img
+          src={`data:image/png;base64,${base64}`}
+          alt={prompt}
+          className="max-w-full rounded-xl shadow-sm border border-cream-200"
+          style={{ maxHeight: '360px', objectFit: 'contain' }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-8 flex justify-center">
+      <div className="w-full max-w-md h-48 rounded-xl border border-cream-200 bg-cream-100 flex flex-col items-center justify-center gap-2 text-walnut-300">
+        {!loaded ? (
+          <Loader2 className="w-6 h-6 animate-spin" />
+        ) : (
+          <ImageOff className="w-6 h-6" />
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments, imageMap, imagesLoaded }: ArticleViewProps) {
   if (isLoading) {
     return (
       <section className="min-h-[400px]">
@@ -150,18 +180,32 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
         </div>
 
         <div className="max-w-[42rem]">
-          {paragraphs.map((paragraph, idx) => (
-            <ParagraphRow
-              key={idx}
-              text={paragraph}
-              index={idx}
-              isSpeaking={speakingIndex === idx}
-              isLoading={isLoadingAudio === idx}
-              onPlay={() => onPlayParagraph(paragraph, idx)}
-              difficulty={difficulty}
-              translation={segments[idx]?.zh}
-            />
-          ))}
+          {paragraphs.map((paragraph, idx) => {
+            const imgMatch = paragraph.match(IMG_MARKER_RE);
+            if (imgMatch) {
+              const prompt = imgMatch[1];
+              return (
+                <ImageRow
+                  key={idx}
+                  prompt={prompt}
+                  base64={imageMap[prompt]}
+                  loaded={imagesLoaded}
+                />
+              );
+            }
+            return (
+              <ParagraphRow
+                key={idx}
+                text={paragraph}
+                index={idx}
+                isSpeaking={speakingIndex === idx}
+                isLoading={isLoadingAudio === idx}
+                onPlay={() => onPlayParagraph(paragraph, idx)}
+                difficulty={difficulty}
+                translation={segments[idx]?.zh}
+              />
+            );
+          })}
         </div>
       </motion.div>
     </section>

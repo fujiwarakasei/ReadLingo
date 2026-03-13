@@ -13,9 +13,10 @@ Requirements:
 2. Write engaging, educational content with vocabulary appropriate for the ${difficulty} level.
 3. Split the article into segments. Each segment should typically be ONE sentence. However, if a sentence is very short (e.g., under 6 words), combine it with an adjacent sentence into one segment. Use your judgment to keep segments natural for reading aloud.
 4. For each segment, provide a natural Chinese translation.
+5. Insert 1-2 image markers in the segments array at appropriate positions to illustrate the article. Use the format: {"en": "[IMG: descriptive English prompt for image generation]", "zh": ""}. The image prompt should be specific, vivid, and relevant to the surrounding content. Place them between text segments where a visual would enhance understanding.
 
 Return a JSON object with exactly this structure (no markdown, no code blocks):
-{"title": "The Article Title", "segments": [{"en": "First sentence.", "zh": "第一句。"}, {"en": "Second sentence.", "zh": "第二句。"}]}`;
+{"title": "The Article Title", "segments": [{"en": "First sentence.", "zh": "第一句。"}, {"en": "[IMG: a vivid description of an illustration]", "zh": ""}, {"en": "Second sentence.", "zh": "第二句。"}]}`;
 
   const response = await ai.models.generateContent({
     model: "gemini-3-flash-preview",
@@ -37,6 +38,26 @@ Return a JSON object with exactly this structure (no markdown, no code blocks):
   } catch {
     return { title: topic, content: text, segments: [{ en: text, zh: '' }] };
   }
+}
+
+export const IMG_MARKER_RE = /^\[IMG:\s*(.+?)\]$/;
+
+export async function generateImage(prompt: string): Promise<string> {
+  const response = await ai.models.generateContent({
+    model: "gemini-2.5-flash-image",
+    contents: `Generate an illustration: ${prompt}. Style: clean, friendly, suitable for an educational reading app. No text or letters in the image.`,
+  });
+
+  const parts = response.candidates?.[0]?.content?.parts ?? [];
+  const imgPart = parts.find(
+    (p: { inlineData?: { data?: string } }) => p.inlineData?.data
+  );
+  if (!imgPart?.inlineData?.data) {
+    console.error("Image generation failed, response parts:", parts);
+    throw new Error("Failed to generate image");
+  }
+
+  return imgPart.inlineData.data;
 }
 
 export async function generateSpeech(text: string, difficulty: string): Promise<string> {
