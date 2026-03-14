@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { BookOpen, Loader2, Volume2, Square, ChevronDown, ImageOff, Mic, CircleStop, Play, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IMG_MARKER_RE } from '../services/gemini';
-import type { Difficulty, Segment } from '../types';
+import type { Difficulty, Segment, WordAlignment } from '../types';
 
 interface ArticleViewProps {
   article: string;
@@ -23,6 +23,8 @@ interface ArticleViewProps {
   onPlayRecording: (index: number) => void;
   onStopPlayingRecording: () => void;
   onDeleteRecording: (index: number) => void;
+  alignmentMap: Record<string, WordAlignment[]>;
+  onPlayWord: (paragraphText: string, start: number, end: number) => void;
 }
 
 const difficultyBadge: Record<string, string> = {
@@ -49,14 +51,41 @@ const difficultySpeakingBtn: Record<string, string> = {
   Advanced: 'bg-rosewood-100 text-rosewood-600',
 };
 
+/** Map MFA word list back to original text tokens by sequential matching */
+function mapAlignmentToTokens(text: string, alignment: WordAlignment[]): Array<{ token: string; timing: WordAlignment | null; trailing: string }> {
+  const result: Array<{ token: string; timing: WordAlignment | null; trailing: string }> = [];
+  // Split text preserving whitespace: each entry = [word, trailingSpace]
+  const regex = /(\S+)(\s*)/g;
+  let match: RegExpExecArray | null;
+  let alignIdx = 0;
+
+  while ((match = regex.exec(text)) !== null) {
+    const token = match[1];
+    const trailing = match[2];
+    // Strip punctuation for comparison
+    const clean = token.replace(/[^a-zA-Z0-9''-]/g, '').toLowerCase();
+
+    if (alignIdx < alignment.length && alignment[alignIdx].word.toLowerCase() === clean) {
+      result.push({ token, timing: alignment[alignIdx], trailing });
+      alignIdx++;
+    } else {
+      result.push({ token, timing: null, trailing });
+    }
+  }
+
+  return result;
+}
+
 function ParagraphRow({
   text, index, isSpeaking, isLoading, onPlay, difficulty, translation,
   isRecording, hasRecording, isPlayingRecording,
   onStartRecording, onStopRecording, onPlayRecording, onStopPlayingRecording, onPlayTTS, onDeleteRecording,
+  alignment, onPlayWord,
 }: {
   text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void; difficulty: Difficulty; translation?: string;
   isRecording: boolean; hasRecording: boolean; isPlayingRecording: boolean;
   onStartRecording: () => void; onStopRecording: () => void; onPlayRecording: () => void; onStopPlayingRecording: () => void; onPlayTTS: () => void; onDeleteRecording: () => void;
+  alignment?: WordAlignment[]; onPlayWord?: (start: number, end: number) => void;
 }) {
   const [showTranslation, setShowTranslation] = useState(false);
 
@@ -107,7 +136,23 @@ function ParagraphRow({
         <p className={`text-[1.125rem] leading-[1.85] font-serif transition-colors duration-300 ${
           isSpeaking ? 'text-walnut-900' : 'text-walnut-700'
         }`}>
-          {text}
+          {alignment && alignment.length > 0 && onPlayWord
+            ? mapAlignmentToTokens(text, alignment).map((item, i) => (
+                <span key={i}>
+                  {item.timing ? (
+                    <span
+                      className="cursor-pointer rounded-sm transition-colors duration-150 hover:bg-amber-400/20 hover:text-amber-700 active:bg-amber-400/30"
+                      onClick={(e) => { e.stopPropagation(); onPlayWord(item.timing!.start, item.timing!.end); }}
+                    >
+                      {item.token}
+                    </span>
+                  ) : (
+                    item.token
+                  )}
+                  {item.trailing}
+                </span>
+              ))
+            : text}
         </p>
         <AnimatePresence>
           {hasRecording && (
@@ -208,7 +253,7 @@ function ImageRow({ prompt, base64, loaded }: { prompt: string; base64?: string;
   );
 }
 
-export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments, imageMap, imagesLoaded, recordingIndex, recordings, playingRecording, onStartRecording, onStopRecording, onPlayRecording, onStopPlayingRecording, onDeleteRecording }: ArticleViewProps) {
+export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments, imageMap, imagesLoaded, recordingIndex, recordings, playingRecording, onStartRecording, onStopRecording, onPlayRecording, onStopPlayingRecording, onDeleteRecording, alignmentMap, onPlayWord }: ArticleViewProps) {
   if (isLoading) {
     return (
       <section className="min-h-[400px]">
@@ -285,6 +330,8 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
                 onStopPlayingRecording={onStopPlayingRecording}
                 onPlayTTS={() => onPlayParagraph(paragraph, idx)}
                 onDeleteRecording={() => onDeleteRecording(idx)}
+                alignment={alignmentMap[paragraph]}
+                onPlayWord={(start, end) => onPlayWord(paragraph, start, end)}
               />
             );
           })}

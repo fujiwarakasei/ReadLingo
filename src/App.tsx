@@ -168,6 +168,8 @@ export default function App() {
           onPlayRecording={recorder.playRecording}
           onStopPlayingRecording={recorder.stopPlayingRecording}
           onDeleteRecording={recorder.deleteRecording}
+          alignmentMap={audio.alignmentMap}
+          onPlayWord={audio.playWordAudio}
         />
       </main>
 

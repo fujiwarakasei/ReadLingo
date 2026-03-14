@@ -5,6 +5,12 @@ export interface Segment {
   zh: string;
 }
 
+export interface WordAlignment {
+  word: string;
+  start: number;
+  end: number;
+}
+
 export interface HistoryItem {
   id: string;
   topic: string;

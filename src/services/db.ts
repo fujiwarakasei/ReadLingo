@@ -1,8 +1,9 @@
 const DB_NAME = 'readlingo';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_AUDIO = 'audio';
 const STORE_IMAGES = 'images';
 const STORE_RECORDINGS = 'recordings';
+const STORE_ALIGNMENTS = 'alignments';
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -12,6 +13,7 @@ function open(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_AUDIO)) db.createObjectStore(STORE_AUDIO);
       if (!db.objectStoreNames.contains(STORE_IMAGES)) db.createObjectStore(STORE_IMAGES);
       if (!db.objectStoreNames.contains(STORE_RECORDINGS)) db.createObjectStore(STORE_RECORDINGS);
+      if (!db.objectStoreNames.contains(STORE_ALIGNMENTS)) db.createObjectStore(STORE_ALIGNMENTS);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -90,3 +92,9 @@ export const putRecording = (key: string, data: Blob) => put(STORE_RECORDINGS, k
 export const deleteRecording = (key: string) => del(STORE_RECORDINGS, key);
 export const clearRecordings = () => clear(STORE_RECORDINGS);
 export const getAllRecordings = () => getAll<Blob>(STORE_RECORDINGS);
+
+// Alignments: store as WordAlignment[] keyed by paragraph text
+import type { WordAlignment } from '../types';
+export const getAlignment = (key: string) => get<WordAlignment[]>(STORE_ALIGNMENTS, key);
+export const putAlignment = (key: string, data: WordAlignment[]) => put(STORE_ALIGNMENTS, key, data);
+export const clearAlignments = () => clear(STORE_ALIGNMENTS);
