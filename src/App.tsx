@@ -61,6 +61,7 @@ export default function App() {
       setArticle(content);
       setArticleTitle(title);
       setSegments(newSegments);
+      setIsLoadingArticle(false);
       audio.clearAudioCache();
       try {
         localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic, title, difficulty, article: content, segments: newSegments, createdAt: now }));
