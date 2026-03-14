@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { generateArticle, generateImage, IMG_MARKER_RE } from './services/gemini';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
+import { useRecorder } from './hooks/useRecorder';
 import { useArticleHistory } from './hooks/useArticleHistory';
 import { Header } from './components/Header';
 import { HistoryPanel } from './components/HistoryPanel';
@@ -29,6 +30,7 @@ export default function App() {
   const [imagesLoaded, setImagesLoaded] = useState(true);
 
   const audio = useAudioPlayer(difficulty);
+  const recorder = useRecorder();
   const historyStore = useArticleHistory();
 
   const speakingSnippet = useMemo(() => {
@@ -48,6 +50,7 @@ export default function App() {
     setImageMap({});
     setImagesLoaded(false);
     audio.stopSpeaking();
+    recorder.clearAllRecordings();
 
     try {
       const { title, content, segments: newSegments } = await generateArticle(topic, difficulty);
@@ -100,6 +103,7 @@ export default function App() {
 
   const restoreFromHistory = (item: HistoryItem) => {
     audio.stopSpeaking();
+    recorder.clearAllRecordings();
     setTopic(item.topic);
     setArticleTitle(item.title ?? item.topic);
     setDifficulty(item.difficulty);
@@ -153,6 +157,14 @@ export default function App() {
           segments={segments}
           imageMap={imageMap}
           imagesLoaded={imagesLoaded}
+          recordingIndex={recorder.recordingIndex}
+          recordings={recorder.recordings}
+          playingRecording={recorder.playingRecording}
+          onStartRecording={recorder.startRecording}
+          onStopRecording={recorder.stopRecording}
+          onPlayRecording={recorder.playRecording}
+          onStopPlayingRecording={recorder.stopPlayingRecording}
+          onDeleteRecording={recorder.deleteRecording}
         />
       </main>
 

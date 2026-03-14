@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BookOpen, Loader2, Volume2, Square, ChevronDown, ImageOff } from 'lucide-react';
+import { BookOpen, Loader2, Volume2, Square, ChevronDown, ImageOff, Mic, CircleStop, Play, Trash2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { IMG_MARKER_RE } from '../services/gemini';
 import type { Difficulty, Segment } from '../types';
@@ -15,6 +15,14 @@ interface ArticleViewProps {
   segments: Segment[];
   imageMap: Record<string, string>;
   imagesLoaded: boolean;
+  recordingIndex: number | null;
+  recordings: Record<number, Blob>;
+  playingRecording: number | null;
+  onStartRecording: (index: number) => void;
+  onStopRecording: () => void;
+  onPlayRecording: (index: number) => void;
+  onStopPlayingRecording: () => void;
+  onDeleteRecording: (index: number) => void;
 }
 
 const difficultyBadge: Record<string, string> = {
@@ -43,8 +51,12 @@ const difficultySpeakingBtn: Record<string, string> = {
 
 function ParagraphRow({
   text, index, isSpeaking, isLoading, onPlay, difficulty, translation,
+  isRecording, hasRecording, isPlayingRecording,
+  onStartRecording, onStopRecording, onPlayRecording, onStopPlayingRecording, onPlayTTS, onDeleteRecording,
 }: {
   text: string; index: number; isSpeaking: boolean; isLoading: boolean; onPlay: () => void; difficulty: Difficulty; translation?: string;
+  isRecording: boolean; hasRecording: boolean; isPlayingRecording: boolean;
+  onStartRecording: () => void; onStopRecording: () => void; onPlayRecording: () => void; onStopPlayingRecording: () => void; onPlayTTS: () => void; onDeleteRecording: () => void;
 }) {
   const [showTranslation, setShowTranslation] = useState(false);
 
@@ -52,7 +64,7 @@ function ParagraphRow({
     <div className={`mb-8 relative group flex gap-3 sm:gap-4 transition-all duration-300 ${
       isSpeaking ? `pl-4 border-l-2 ${difficultyAccent[difficulty] || 'border-l-amber-500'}` : 'pl-0 border-l-2 border-l-transparent'
     }`}>
-      <div className="shrink-0 pt-1">
+      <div className="shrink-0 pt-1 flex flex-col gap-1.5">
         <button
           onClick={onPlay}
           className={`w-10 h-10 rounded-full transition-all duration-200 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-amber-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50 ${
@@ -72,6 +84,24 @@ function ParagraphRow({
             <Volume2 className="w-5 h-5" />
           )}
         </button>
+        <button
+          onClick={isRecording ? onStopRecording : onStartRecording}
+          className={`w-10 h-10 rounded-full transition-all duration-200 flex items-center justify-center focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 focus-visible:ring-offset-2 focus-visible:ring-offset-cream-50 ${
+            isRecording
+              ? 'bg-red-100 text-red-500 animate-pulse'
+              : hasRecording
+                ? 'bg-rosewood-100 text-rosewood-500 hover:bg-red-100 hover:text-red-500'
+                : 'bg-cream-200 text-walnut-400 hover:bg-red-50 hover:text-red-400'
+          }`}
+          title={isRecording ? "停止录音" : "开始录音"}
+          aria-label={isRecording ? "停止录音" : "开始录音"}
+        >
+          {isRecording ? (
+            <CircleStop className="w-5 h-5" />
+          ) : (
+            <Mic className="w-5 h-5" />
+          )}
+        </button>
       </div>
       <div className="flex-1 pt-1.5">
         <p className={`text-[1.125rem] leading-[1.85] font-serif transition-colors duration-300 ${
@@ -79,6 +109,49 @@ function ParagraphRow({
         }`}>
           {text}
         </p>
+        <AnimatePresence>
+          {hasRecording && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <button
+                  onClick={isPlayingRecording ? onStopPlayingRecording : onPlayRecording}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    isPlayingRecording
+                      ? 'bg-rosewood-100 text-rosewood-600'
+                      : 'bg-cream-200 text-walnut-500 hover:bg-rosewood-50 hover:text-rosewood-500'
+                  }`}
+                >
+                  {isPlayingRecording ? <Square className="w-3 h-3 fill-current" /> : <Play className="w-3 h-3 fill-current" />}
+                  我的录音
+                </button>
+                <button
+                  onClick={onPlayTTS}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${
+                    isSpeaking
+                      ? difficultySpeakingBtn[difficulty] || 'bg-amber-400/20 text-amber-600'
+                      : 'bg-cream-200 text-walnut-500 hover:bg-amber-400/15 hover:text-amber-500'
+                  }`}
+                >
+                  {isSpeaking ? <Square className="w-3 h-3 fill-current" /> : <Volume2 className="w-3 h-3" />}
+                  AI 朗读
+                </button>
+                <button
+                  onClick={onDeleteRecording}
+                  className="inline-flex items-center gap-1 px-2 py-1.5 rounded-full text-xs text-walnut-300 hover:text-red-400 transition-colors"
+                  title="删除录音"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
         {translation && (
           <div className="mt-1.5">
             <button
@@ -135,7 +208,7 @@ function ImageRow({ prompt, base64, loaded }: { prompt: string; base64?: string;
   );
 }
 
-export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments, imageMap, imagesLoaded }: ArticleViewProps) {
+export function ArticleView({ article, articleTitle, difficulty, isLoading, speakingIndex, isLoadingAudio, onPlayParagraph, segments, imageMap, imagesLoaded, recordingIndex, recordings, playingRecording, onStartRecording, onStopRecording, onPlayRecording, onStopPlayingRecording, onDeleteRecording }: ArticleViewProps) {
   if (isLoading) {
     return (
       <section className="min-h-[400px]">
@@ -203,6 +276,15 @@ export function ArticleView({ article, articleTitle, difficulty, isLoading, spea
                 onPlay={() => onPlayParagraph(paragraph, idx)}
                 difficulty={difficulty}
                 translation={segments[idx]?.zh}
+                isRecording={recordingIndex === idx}
+                hasRecording={idx in recordings}
+                isPlayingRecording={playingRecording === idx}
+                onStartRecording={() => onStartRecording(idx)}
+                onStopRecording={onStopRecording}
+                onPlayRecording={() => onPlayRecording(idx)}
+                onStopPlayingRecording={onStopPlayingRecording}
+                onPlayTTS={() => onPlayParagraph(paragraph, idx)}
+                onDeleteRecording={() => onDeleteRecording(idx)}
               />
             );
           })}
