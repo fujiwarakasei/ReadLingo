@@ -1,12 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { generateSpeech } from '../services/gemini';
 import { base64ToBytes } from '../utils/audio';
-import { STORAGE_KEY_AUDIO } from '../constants';
+import { getAudio, putAudio, clearAudio as clearAudioDB } from '../services/db';
 
 export function useAudioPlayer(difficulty: string) {
-  const [audioCache, setAudioCache] = useState<Record<string, string>>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE_KEY_AUDIO) || '{}') as Record<string, string>; } catch { return {}; }
-  });
+  const audioCacheRef = useRef<Set<string>>(new Set());
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
   const [isLoadingAudio, setIsLoadingAudio] = useState<number | null>(null);
   const [isAudioPaused, setIsAudioPaused] = useState(false);
@@ -78,8 +76,8 @@ export function useAudioPlayer(difficulty: string) {
   }, []);
 
   const clearAudioCache = useCallback(() => {
-    setAudioCache({});
-    try { localStorage.removeItem(STORAGE_KEY_AUDIO); } catch { /* skip */ }
+    audioCacheRef.current.clear();
+    clearAudioDB().catch(() => { /* skip */ });
   }, []);
 
   const playParagraph = useCallback(async (text: string, index: number) => {
@@ -95,20 +93,19 @@ export function useAudioPlayer(difficulty: string) {
     await ctx.resume();
 
     try {
-      let wavBase64: string;
-      if (audioCache[text]) {
-        wavBase64 = audioCache[text];
+      let wavBuffer: ArrayBuffer;
+      const cached = await getAudio(text);
+      if (cached) {
+        wavBuffer = cached;
       } else {
-        wavBase64 = await generateSpeech(text, difficulty);
-        const newCache = { ...audioCache, [text]: wavBase64 };
-        setAudioCache(newCache);
-        try {
-          localStorage.setItem(STORAGE_KEY_AUDIO, JSON.stringify(newCache));
-        } catch { /* quota exceeded, skip */ }
+        const wavBase64 = await generateSpeech(text, difficulty);
+        const bytes = base64ToBytes(wavBase64);
+        wavBuffer = bytes.buffer.slice(0) as ArrayBuffer;
+        audioCacheRef.current.add(text);
+        putAudio(text, wavBuffer.slice(0)).catch(() => { /* quota exceeded, skip */ });
       }
 
-      const bytes = base64ToBytes(wavBase64);
-      const audioBuffer = await ctx.decodeAudioData(bytes.buffer.slice(0) as ArrayBuffer);
+      const audioBuffer = await ctx.decodeAudioData(wavBuffer.slice(0));
       audioBufferRef.current = audioBuffer;
 
       setSpeakingIndex(index);
@@ -120,7 +117,7 @@ export function useAudioPlayer(difficulty: string) {
       alert("Failed to generate audio. Please try again.");
       setIsLoadingAudio(null);
     }
-  }, [speakingIndex, audioCache, difficulty, stopSpeaking]);
+  }, [speakingIndex, difficulty, stopSpeaking]);
 
   const togglePlayPause = useCallback(() => {
     const buffer = audioBufferRef.current;

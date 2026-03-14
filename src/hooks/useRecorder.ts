@@ -1,4 +1,10 @@
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
+import {
+  putRecording as putRecordingDB,
+  deleteRecording as deleteRecordingDB,
+  clearRecordings as clearRecordingsDB,
+  getAllRecordings,
+} from '../services/db';
 
 type RecordingState = 'idle' | 'recording';
 
@@ -6,6 +12,18 @@ export function useRecorder() {
   const [recordingIndex, setRecordingIndex] = useState<number | null>(null);
   const [recordings, setRecordings] = useState<Record<number, Blob>>({});
   const [playingRecording, setPlayingRecording] = useState<number | null>(null);
+
+  // Restore recordings from IndexedDB on mount
+  useEffect(() => {
+    getAllRecordings().then(cached => {
+      const restored: Record<number, Blob> = {};
+      for (const [key, blob] of Object.entries(cached)) {
+        const idx = Number(key);
+        if (!isNaN(idx)) restored[idx] = blob;
+      }
+      if (Object.keys(restored).length > 0) setRecordings(restored);
+    }).catch(() => { /* skip */ });
+  }, []);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
@@ -30,6 +48,7 @@ export function useRecorder() {
         const blob = new Blob(chunksRef.current, { type: 'audio/webm' });
         setRecordings(prev => ({ ...prev, [index]: blob }));
         setRecordingIndex(null);
+        putRecordingDB(String(index), blob).catch(() => { /* skip */ });
         // Release mic
         stream.getTracks().forEach(t => t.stop());
       };
@@ -87,11 +106,13 @@ export function useRecorder() {
       delete next[index];
       return next;
     });
+    deleteRecordingDB(String(index)).catch(() => { /* skip */ });
   }, [stopPlayingRecording]);
 
   const clearAllRecordings = useCallback(() => {
     stopPlayingRecording();
     setRecordings({});
+    clearRecordingsDB().catch(() => { /* skip */ });
   }, [stopPlayingRecording]);
 
   const state = (index: number): RecordingState => {

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { generateArticle, generateImage, IMG_MARKER_RE } from './services/gemini';
 import { useAudioPlayer } from './hooks/useAudioPlayer';
 import { useRecorder } from './hooks/useRecorder';
@@ -8,16 +8,15 @@ import { HistoryPanel } from './components/HistoryPanel';
 import { GeneratorForm } from './components/GeneratorForm';
 import { ArticleView } from './components/ArticleView';
 import { AudioController } from './components/AudioController';
-import { STORAGE_KEY_STATE, STORAGE_KEY_IMAGES } from './constants';
+import { STORAGE_KEY_STATE } from './constants';
+import { putImage, clearImages, getAllImages } from './services/db';
 import type { Difficulty, Segment, HistoryItem } from './types';
 
 const savedState = (() => {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY_STATE) || 'null'); } catch { return null; }
 })();
 
-const savedImages = (() => {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch { return {}; }
-})();
+// Images are loaded from IndexedDB asynchronously in useEffect
 
 export default function App() {
   const [topic, setTopic] = useState(savedState?.topic ?? '');
@@ -26,8 +25,16 @@ export default function App() {
   const [articleTitle, setArticleTitle] = useState<string>(savedState?.title ?? savedState?.topic ?? '');
   const [segments, setSegments] = useState<Segment[]>(savedState?.segments ?? []);
   const [isLoadingArticle, setIsLoadingArticle] = useState(false);
-  const [imageMap, setImageMap] = useState<Record<string, string>>(savedImages);
-  const [imagesLoaded, setImagesLoaded] = useState(true);
+  const [imageMap, setImageMap] = useState<Record<string, string>>({});
+  const [imagesLoaded, setImagesLoaded] = useState(false);
+
+  // Load cached images from IndexedDB on mount
+  useEffect(() => {
+    getAllImages().then(cached => {
+      if (Object.keys(cached).length > 0) setImageMap(cached);
+      setImagesLoaded(true);
+    }).catch(() => setImagesLoaded(true));
+  }, []);
 
   const audio = useAudioPlayer(difficulty);
   const recorder = useRecorder();
@@ -73,7 +80,7 @@ export default function App() {
         .filter((p): p is string => !!p);
 
       if (imgPrompts.length > 0) {
-        try { localStorage.removeItem(STORAGE_KEY_IMAGES); } catch { /* skip */ }
+        clearImages().catch(() => { /* skip */ });
 
         const results = await Promise.allSettled(
           imgPrompts.map(prompt => generateImage(prompt))
@@ -83,15 +90,13 @@ export default function App() {
         results.forEach((result, i) => {
           if (result.status === 'fulfilled') {
             newImageMap[imgPrompts[i]] = result.value;
+            putImage(imgPrompts[i], result.value).catch(() => { /* skip */ });
           } else {
             console.error(`Image generation failed for: ${imgPrompts[i]}`, result.reason);
           }
         });
 
         setImageMap(newImageMap);
-        try {
-          localStorage.setItem(STORAGE_KEY_IMAGES, JSON.stringify(newImageMap));
-        } catch { /* quota exceeded, skip */ }
       }
       setImagesLoaded(true);
     } catch (error) {
@@ -111,11 +116,8 @@ export default function App() {
     setArticle(item.article);
     setSegments(item.segments ?? []);
     audio.clearAudioCache();
-    // Restore image cache if available
-    const cachedImages = (() => {
-      try { return JSON.parse(localStorage.getItem(STORAGE_KEY_IMAGES) || '{}'); } catch { return {}; }
-    })();
-    setImageMap(cachedImages);
+    // Restore image cache from IndexedDB
+    getAllImages().then(cached => setImageMap(cached)).catch(() => setImageMap({}));
     historyStore.setShowHistory(false);
     try {
       localStorage.setItem(STORAGE_KEY_STATE, JSON.stringify({ topic: item.topic, title: item.title, difficulty: item.difficulty, article: item.article, segments: item.segments, createdAt: item.createdAt }));
